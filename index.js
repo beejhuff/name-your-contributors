@@ -173,8 +173,12 @@ module.exports = function (org, opts, token) {
       getPRReviewers(response, org, opts),
       getCommenters(response, org, opts)
     ])
-    .map((res) => filterResponses(res, opts))
-    .then((users) => formatGhUsers(users))
-    .then((res) => _.union(res))
+    .map((res) => {
+      console.log('\n## MAPPED RESULT, NOT FILTERED ##\n\n')
+      console.log(res)
+    })
+    // .map((res) => filterResponses(res, opts))
+    // .then((users) => formatGhUsers(users))
+    // .then((res) => _.union(res))
   })
 }
