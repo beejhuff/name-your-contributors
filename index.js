@@ -36,16 +36,21 @@ function getRepositories (org, opts, token) {
         return user
       }
     })
-    .then((user) => depaginate((opts) => {
-      if (opts.org.type === 'Organization') {
-        return octo.orgs(org).repos.fetch(opts)
+    .then((user) => {
+      if (opts.r) {
+        return [octo.repos(org, opts.r).fetch(opts)]
+      } else {
+        return depaginate((opts) => {
+          if (opts.org.type === 'Organization') {
+            return octo.orgs(org).repos.fetch(opts)
+          }
+          return octo.users(org).repos.fetch(opts)
+        }, {
+          org: user
+        })
+        .then(_.flatten.bind(_))
       }
-      return octo.users(org).repos.fetch(opts)
-    }, {
-      org: user
-    }))
-    .then(_.flatten.bind(_))
-    .filter((resp) => (opts.repo) ? resp.name === opts.repo : resp)
+    })
     .catch((err) => {
       console.log('Unable to get repositories', err)
     })
