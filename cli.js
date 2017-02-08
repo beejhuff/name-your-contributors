@@ -19,13 +19,13 @@ const cli = meow([`
   Examples
     $ name-your-contributors ipfs --since=2016-01-15T00:20:24Z --until=2016-01-20T00:20:24Z
     [@RichardLitt](//github.com/RichardLitt) (Richard Littauer)
-`, {
+`], {
   alias: {
     s: 'since',
     u: 'until',
     r: 'repo'
   }
-}])
+})
 
 Promise.try(() => {
   if (cli.input.length === 0) {
