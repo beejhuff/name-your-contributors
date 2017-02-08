@@ -31,7 +31,7 @@ function getRepositories (org, opts, token) {
   return getGithubUser(org)
     .then((user) => {
       if (user.length === 0) {
-        throw new Error(org + 'is not a valid GitHub user')
+        throw new Error(org + ' is not a valid GitHub user')
       } else {
         return user
       }
@@ -169,8 +169,6 @@ function saveResponses (org, opts, token) {
   return mkdir(`./data/${org}`)
     .then(() => getRepositories(org, opts, token))
     .then((response) => {
-      console.log('Got response')
-
       return collect(
         getIssueCreators(response, org, opts),
         org,
