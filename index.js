@@ -14,21 +14,12 @@ const readFile = Promise.promisify(fs.readFile, fs)
 const writeFile = Promise.promisify(fs.writeFile)
 const mkdir = Promise.promisify(require('mkdirp'))
 let octo
+const githubRepos = require('github-repositories');
 
-function getRepositories (org, opts, token) {
-  octo = new Octokat({
-    token: token || process.env.GITHUB_OGN_TOKEN
-  })
 
-  if (opts.since && !moment(opts.since).isValid()) {
-    throw new Error('\'since\' flag is an invalid date.')
-  }
-
-  if (opts.until && !moment(opts.until).isValid()) {
-    throw new Error('\'until\' flag is an invalid date.')
-  }
-
-  return getGithubUser(org)
+function getRepositories (user, opts) {
+  console.log(opts)
+  return getGithubUser(user)
     .then((user) => {
       if (user.length === 0) {
         throw new Error(org + 'is not a valid GitHub user')
@@ -36,20 +27,23 @@ function getRepositories (org, opts, token) {
         return user
       }
     })
-    .then((user) => depaginate((opts) => {
-      if (opts.org.type === 'Organization') {
-        return octo.orgs(org).repos.fetch(opts)
+    .then((user) => {
+      // If there is only one repo to get
+      if (opts.repo) {
+        return octo.repos(user[0].login, opts.repo).fetch()
+          .then((res) => {
+            return [res]
+          })
+      // Or if we should get all of them
+      } else {
+        // Passing in opts.token will work for this submodule, too.
+        return githubRepos(user[0].login, opts)
       }
-      return octo.users(org).repos.fetch(opts)
-
-      }, {
-        org: user
-      }))
-    .then(_.flatten.bind(_))
-    .filter((resp) => (opts.repo) ? resp.name === opts.repo : resp)
+    })
     .catch((err) => {
       console.log('Unable to get repositories', err)
     })
+
 }
 
 function filterResponses (response, opts) {
@@ -159,54 +153,73 @@ function getCommenters (response, org, opts) {
     })
 }
 
-
-function collect (val, org, name) {
-  return val
-    .then((res) => writeFile(`./data/${org}/${name}.json`, JSON.stringify(res, null, 2)))
-    .then(() => {
-      console.log('wrote %s', name)
+function collect (val, org, repo, name) {
+  return Promise.resolve(val)
+    .then((res) => {
+      writeFile(
+        (repo) ? `./data/${org}/${repo}/${name}.json` : `./data/${org}.json`,
+        JSON.stringify(res, null, 2)
+      )
+      return val
     })
+    .then(() => console.log('wrote %s', repo))
+    .catch((err) => console.log(err))
 }
 
-function saveResponses (org, opts, token) {
-  return mkdir(`./data/${org}`)
-    .then(() => getRepositories(org, opts, token))
-    .then((response) => {
-      console.log('Got response')
+function validateOpts (opts) {
+  opts.token = opts.token || process.env.GITHUB_OGN_TOKEN
 
-      return collect(
-        getIssueCreators(response, org, opts),
-        org,
-        'issue_creators'
-      )
-        .then(() => {
-          return collect(
-            getIssueCommenters(response, org, opts),
-            org,
-            'issue_commenters'
-          )
-        })
-        .then(() => {
-          return collect(
-            getPRCreators(response, org, opts),
-            org,
-            'pr_creators'
-          )
-        })
-        .then(() => {
-          return collect(
-            getPRReviewers(response, org, opts),
-            org,
-            'pr_reviewers'
-          )
-        })
-        .then(() => {
-          return collect(
-            getCommenters(response, org, opts),
-            org,
-            'commenters'
-          )
-        })
+  if (opts.since && !moment(opts.since).isValid()) {
+    throw new Error('\'since\' flag is an invalid date.')
+  }
+  if (opts.until && !moment(opts.until).isValid()) {
+    throw new Error('\'until\' flag is an invalid date.')
+  }
+
+  return opts
+}
+
+function saveResponses (org, opts) {
+  return mkdir(`./data/${org}`)
+    .then(() => getRepositories(org, opts))
+    .then((response) => {
+      console.log('Got response', response)
+
+      // TODO Enable repo option
+      // return collect(
+      //   getIssueCreators(response, org, opts),
+      //   org,
+// Like thiss:          repo,
+      //   'issue_creators'
+      // )
+      //   .then(() => {
+      //     return collect(
+      //       getIssueCommenters(response, org, opts),
+      //       org,
+      //       'issue_commenters'
+      //     )
+      //   })
+      //   .then(() => {
+      //     return collect(
+      //       getPRCreators(response, org, opts),
+      //       org,
+      //       'pr_creators'
+      //     )
+      //   })
+      //   .then(() => {
+      //     return collect(
+      //       getPRReviewers(response, org, opts),
+      //       org,
+      //       'pr_reviewers'
+      //     )
+      //   })
+      //   .then(() => {
+      //     return collect(
+      //       getCommenters(response, org, opts),
+      //       org,
+      //       'commenters'
+      //     )
+      //   })
     })
     .then(() => {
       console.log('Done collecting data.')
@@ -214,13 +227,19 @@ function saveResponses (org, opts, token) {
 }
 
 
-module.exports = function (org, opts, token) {
-  return Promise.resolve(saveResponses(org, opts, token))
-    .then(() => readdir(`./data/${org}`))
-    .map((res) => readFile(`./data/${org}/${res}`, 'utf8'))
-    .map((res) => JSON.parse(res))
-    .reduce((prev, cur) => prev.concat(cur), [])
-    .then((res) => filterResponses(res, opts))
-    .then((users) => formatGhUsers(users))
-    .then((res) => _.union(res))
+module.exports = function (org, opts) {
+  opts = validateOpts(opts)
+  octo = new Octokat({
+    token: opts.token
+  })
+
+  return Promise.resolve(saveResponses(org, opts))
+    // TODO Use the new logic
+    // .then(() => readdir(`./data/${org}`))
+    // .map((res) => readFile(`./data/${org}/${res}`, 'utf8'))
+    // .map((res) => JSON.parse(res))
+    // .reduce((prev, cur) => prev.concat(cur), [])
+    // .then((res) => filterResponses(res, opts))
+    // .then((users) => formatGhUsers(users))
+    // .then((res) => _.union(res))
 }

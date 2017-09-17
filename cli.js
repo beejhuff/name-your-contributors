@@ -14,18 +14,20 @@ const cli = meow([`
   Options
     -s, --since Add a time since
     -u, --until Add a time to
-    -r, --repo A repository to search
+    -r, --repo  A repository to search
+    -t, --token A token
 
   Examples
     $ name-your-contributors ipfs --since=2016-01-15T00:20:24Z --until=2016-01-20T00:20:24Z
     [@RichardLitt](//github.com/RichardLitt) (Richard Littauer)
-`, {
+`], {
   alias: {
     s: 'since',
     u: 'until',
-    r: 'repo'
+    r: 'repo',
+    t: 'token'
   }
-}])
+})
 
 Promise.try(() => {
   if (cli.input.length === 0) {
